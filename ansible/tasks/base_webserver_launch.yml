@@ -1,0 +1,89 @@
+- name: Create base webserver instance
+  ec2_instance:
+    name: BaseWebserver
+    tags:
+      Type: WebServer
+      Designation: Base
+      CreatedBy: Ansible
+    instance_type: "{{ base_vm_type }}"
+    image_id: "{{ default_amis.images[-1].image_id }}"
+    key_name: webservers_key
+    # If subnet ID is not given the module will choose the default zone of the default VPC
+    # This makes most of the previous VPC fact gathering useless for this instance's purpose
+    vpc_subnet_id: "{{ subnet_ids[0] }}"
+    network:
+      assign_public_ip: yes
+    security_group: webservers_access
+    state: running
+    wait_timeout: 60
+  register: base_webserver
+
+- name: Commit webservers to inventory file
+  lineinfile:
+    path: inventory
+    insertafter: '^\[webservers\]\n'
+    line: >-
+      base_webserver
+      ansible_host={{ base_webserver.instances[0].public_dns_name }}
+      ansible_user=ec2-user
+      ansible_ssh_common_args="'-o StrictHostKeyChecking=no'"
+      ansible_ssh_private_key_file=.keypairs/webservers_key.pem
+    state: present
+- meta: refresh_inventory
+
+- name: Create ELB target group
+  elb_target_group:
+    name: webservers-target-group
+    protocol: http
+    port: 80
+    vpc_id: "{{ default_vpc.vpcs[0].vpc_id }}"
+    state: present
+    tags:
+      CreatedBy: Ansible
+
+- name: Add base webserver instance to target group
+  elb_target:
+    target_group_name: webservers-target-group
+    target_id: "{{ base_webserver.instances[0].instance_id }}"
+    state: present
+
+- name: Create webserver load balancer
+  elb_application_lb:
+    name: webservers-elb
+    state: present
+    subnets: "{{ subnet_ids }}"
+    security_groups:
+      - webservers_access
+    listeners:
+      - Protocol: HTTP
+        Port: 80
+        DefaultActions:
+          - Type: forward
+            TargetGroupName: webservers-target-group
+    tags:
+      CreatedBy: Ansible
+  register: elb
+
+- name: Note ELB URL
+  lineinfile:
+    path: facts/elb_url.yml
+    create: yes
+    line: "elb_url: {{ elb.dns_name }}"
+
+- name: Get base webserver facts
+  ec2_instance_info:
+    filters:
+      instance-state-name: ['pending', 'running', 'stopped']
+      tag:Name: BaseWebserver
+  register: base_webserver
+
+- name: Cleanup facts file
+  file:
+    path: facts/base_webserver.yml
+    state: absent
+
+- name: Store facts to YAML
+  lineinfile:
+    path: facts/base_webserver.yml
+    create: yes
+    line: "{{ base_webserver | to_nice_yaml(indent=2) }}"

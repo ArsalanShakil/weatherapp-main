@@ -1,0 +1,7 @@
+frontend_image: weatherapp_frontend
+backend_image: weatherapp_backend
+base_vm_type: t2.micro
+app_repo: https://github.com/ArsalanShakil/weatherapp-main.git 
+app_api_port: 9000
+aws_account_number: '{{ vault_aws_account_number }}'
+scale_count: 3 # this is the number of Availability Zones in the EU-NORTH-1 Region

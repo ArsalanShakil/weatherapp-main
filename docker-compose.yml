@@ -1,0 +1,20 @@
+version: '3'
+
+services:
+  frontend:
+    command: npm start
+    build: ./frontend
+    volumes:
+      - ./frontend:/weatherapp-frontend
+    ports:
+      - '8000:8000'
+    depends_on:
+      - backend
+
+  backend:
+    build: ./backend
+    command: npm start
+    ports:
+      - '9000:9000'
+    env_file:
+      - .backend.env

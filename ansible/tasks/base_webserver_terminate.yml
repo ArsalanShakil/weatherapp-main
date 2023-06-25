@@ -1,0 +1,64 @@
+- name: Get base webserver facts
+  ec2_instance_info:
+    filters:
+      instance-state-name: running
+      tag:Type: WebServer
+      tag:CreatedBy: Ansible
+  register: base_webserver
+  tags: ['never', 'cleanup']
+
+- name: Cleanup facts file
+  file:
+    path: facts/base_webserver.yml
+    state: absent
+  tags: ['never', 'cleanup']
+
+- name: Terminate webserver instances
+  ec2_instance:
+    instance_ids:
+      - "{{ item.instance_id }}"
+    state: terminated
+    wait: yes
+    wait_timeout: 180
+  loop: "{{ base_webserver.instances }}"
+  tags: ['never', 'cleanup']
+
+- name: Remove webservers ELB
+  elb_application_lb:
+    name: webservers-elb
+    state: absent
+    wait: yes
+  tags: ['never', 'cleanup']
+
+- name: Remove ELB URL file
+  file:
+    path: facts/elb_url.yml
+    state: absent
+  tags: ['never', 'cleanup']
+
+- name: Get webservers target group info
+  elb_target_group_info:
+    names:
+      - webservers-target-group
+  register: targets
+  tags: ['never', 'cleanup']
+
+- name: Remove webservers target group
+  elb_target_group:
+    name: "{{ targets.target_groups[0].target_group_name }}"
+    # None of this information should be required as per the docs,
+    # but the task fails when not given
+    vpc_id: "{{ targets.target_groups[0].vpc_id }}"
+    protocol: http
+    port: 80
+    # #############################################
+    state: absent
+  tags: ['never', 'cleanup']
+
+- name: Remove base webserver from inventory
+  lineinfile:
+    path: inventory
+    regexp: '^base_webserver\s' # '^base_webserver\s[a-zA-Z0-9\s\\\-\'\s\./_=]*'
+    state: absent
+  tags: ['never', 'cleanup']
+- meta: refresh_inventory

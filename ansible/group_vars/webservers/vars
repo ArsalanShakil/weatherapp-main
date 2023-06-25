@@ -1,0 +1,4 @@
+app_home: /home/ec2-user/weatherapp
+app_id: "{{ vault_app_id }}"
+app_client_port: 80
+app_endpoint: http://{{ ansible_host }}:{{ app_api_port }}/api

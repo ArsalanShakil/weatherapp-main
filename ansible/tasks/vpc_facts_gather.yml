@@ -1,0 +1,50 @@
+- name: Cleanup facts files
+  shell:
+    cmd: rm -rf facts/default_*.yml
+    warn: no
+  tags: ['cleanup']
+
+- name: Get default VPC facts
+  ec2_vpc_net_info:
+    filters:
+      "isDefault": "true"
+  register: default_vpc
+
+- name: Store facts to YAML
+  lineinfile:
+    path: facts/default_vpc.yml
+    create: yes
+    line: "{{ default_vpc | to_nice_yaml(indent=2) }}"
+
+- name: Get subnet facts
+  ec2_vpc_subnet_info:
+    filters:
+      vpc-id: "{{ default_vpc.vpcs[0].vpc_id }}"
+  register: default_subnets
+
+- name: Store facts to YAML
+  lineinfile:
+    path: facts/default_subnets.yml
+    create: yes
+    line: "{{ default_subnets | to_nice_yaml(indent=2) }}"
+
+- name: Extract subnet IDs
+  set_fact:
+    # Python slicing doesn't work here
+    subnet_ids: "{{ [0,1,2] | map('extract', default_subnets.subnets, 'subnet_id') | list }}"
+    cacheable: yes
+    
+- name: Get Amazon Linux AMI facts
+  ec2_ami_info:
+    owners: 137112412989 # Amazon
+    filters:
+      name: "amzn2-ami-hvm-2.0.2020*"
+      architecture: "x86_64"
+      block-device-mapping.volume-type: standard
+  register: default_amis
+
+- name: Store facts to YAML
+  lineinfile:
+    path: facts/default_ami.yml
+    create: yes
+    line: "{{ default_amis.images[-1] | to_nice_yaml(indent=2) }}" # latest

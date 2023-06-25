@@ -1,0 +1,22 @@
+version: '3.9'
+
+services:
+  backend-dev-run:
+    image: node:18.0.0
+    volumes:
+      - ./backend:/backend
+    working_dir: /backend
+    env_file: .env
+    command: ['npm', 'run', 'dev']
+    ports:
+      - 9000:9000
+
+  frontend-dev-run:
+    image: node:16.13.0
+    volumes:
+      - ./frontend:/frontend
+    working_dir: /frontend
+    env_file: .env
+    command: ['npm', 'start']
+    ports:
+      - 8000:8000

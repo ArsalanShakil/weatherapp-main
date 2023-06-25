@@ -1,0 +1,31 @@
+- name: Cleanup previous repo
+  file:
+    path: "{{ app_home }}/"
+    state: absent
+    
+- name: Pull app from Git repo
+  git:
+    repo: "{{ app_repo }}"
+    dest: "{{ app_home }}"
+
+- name: Push docker-compose environment
+  lineinfile:
+    path: "{{ app_home }}/.env"
+    create: yes
+    line: |
+      APPID={{ app_id }}
+      ENDPOINT={{ app_endpoint }}
+      CLIENT_PORT={{ app_client_port }}
+  
+# Use Docker's native commands to overcome module limitations due to PIP
+
+- name: Cleanup previous docker containers and images
+  shell:
+    cmd: docker system prune -f
+  # [Docker bug] doesn't respect user in group "docker", still need sudo
+  become: yes
+
+- name: Compose application
+  shell:
+    # [Docker bug] --project-directory flag does not pick up the config file
+    cmd: cd {{ app_home }} && docker-compose up -d --build --force-recreate
